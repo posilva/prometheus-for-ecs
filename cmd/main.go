@@ -15,6 +15,7 @@ import (
 const (
 	PrometheusConfigParameter    = "ECS-Prometheus-Configuration"
 	DiscoveryNamespacesParameter = "ECS-ServiceDiscovery-Namespaces"
+	ScrapeConfigFile    	 = "ecs-services.json"
 )
 
 var prometheusConfigFilePath string
@@ -32,8 +33,14 @@ func main() {
 	if !present {
 		configReloadFrequency = "30"
 	}
+
+	scrapeConfigFile, present := os.LookupEnv("SCRAPE_CONFIG_FILE")
+	if !present {
+		scrapeConfigFile = ScrapeConfigFile
+	}
+
 	prometheusConfigFilePath = strings.Join([]string{configFileDir, "prometheus.yaml"}, "/")
-	scrapeConfigFilePath = strings.Join([]string{configFileDir, "ecs-services.json"}, "/")
+	scrapeConfigFilePath = strings.Join([]string{configFileDir, scrapeConfigFile}, "/")
 
 	loadPrometheusConfig()
 	loadScrapeConfig()
@@ -70,7 +77,11 @@ func main() {
 }
 
 func loadPrometheusConfig() {
-	prometheusConfig := aws.GetParameter(PrometheusConfigParameter)
+	prometheusConfigParameter, present := os.LookupEnv("PROMETHEUS_CONFIG_SSMPARAM_NAME")
+	if !present {
+		prometheusConfigParameter = PrometheusConfigParameter
+	}
+	prometheusConfig := aws.GetParameter(prometheusConfigParameter)
 	err := ioutil.WriteFile(prometheusConfigFilePath, []byte(*prometheusConfig), 0644)
 	if err != nil {
 		log.Println(err)
@@ -85,7 +96,11 @@ func loadScrapeConfig() {
 }
 
 func reloadScrapeConfig() {
-	namespaceList := aws.GetParameter(DiscoveryNamespacesParameter)
+	discoveryNamespacesParameter, present := os.LookupEnv("DISCOVERY_NAMESPACE_SSMPARAM")
+	if !present {
+		discoveryNamespacesParameter = DiscoveryNamespacesParameter
+	}
+	namespaceList := aws.GetParameter(discoveryNamespacesParameter)
 	namespaces := strings.Split(*namespaceList, ",")
 	scrapConfig := aws.GetPrometheusScrapeConfig(namespaces)
 	err := ioutil.WriteFile(scrapeConfigFilePath, []byte(*scrapConfig), 0644)
