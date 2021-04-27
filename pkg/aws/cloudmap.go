@@ -158,6 +158,7 @@ func (c *CloudMapClient) getInstanceScrapeConfiguration(sdInstance *ServiceDisco
 	// Port number of the resource is available, by default, as an attribute with the key 'AWS_INSTANCE_PORT'
 	defaultPort, present := sdInstance.attributes[PortNumberAttribute]
 	if !present {
+		log.Println(fmt.Sprintf("AWS_INSTANCE_PORT attrib not found in instance/service '%s/%s' set default to port 80", *sdInstance.instanceId, *sdInstance.service))
 		defaultPort = aws.String("80")
 	}
 	// Metrics port is expected as a resource tag with the key 'METRICS_PORT'
