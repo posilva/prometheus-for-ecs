@@ -15,9 +15,10 @@ import (
 const (
 	PrometheusConfigParameter    = "ECS-Prometheus-Configuration"
 	DiscoveryNamespacesParameter = "ECS-ServiceDiscovery-Namespaces"
-	ScrapeConfigFile    	 = "ecs-services.json"
+	ScrapeConfigFile             = "ecs-services.json"
 )
 
+var allowReloadPrometheusConfig bool
 var prometheusConfigFilePath string
 var scrapeConfigFilePath string
 
@@ -29,6 +30,15 @@ func main() {
 	if !present {
 		configFileDir = "/etc/config/"
 	}
+	reloadConfig, present := os.LookupEnv("PROMETHEUS_RELOAD_CONFIG")
+	if present {
+		b, err := strconv.ParseBool(reloadConfig)
+		if err == nil {
+			allowReloadPrometheusConfig = b
+			log.Println("Prometheus configuration reloader failed to parse option 'PROMETHEUS_RELOAD_CONFIG'")
+		}
+	}
+
 	configReloadFrequency, present := os.LookupEnv("CONFIG_RELOAD_FREQUENCY")
 	if !present {
 		configReloadFrequency = "30"
@@ -49,6 +59,7 @@ func main() {
 	go func() {
 		reloadFrequency, _ := strconv.Atoi(configReloadFrequency)
 		ticker := time.NewTicker(time.Duration(reloadFrequency) * time.Second)
+		reloadPrometheusConfig := false
 		for {
 			select {
 			case <-ticker.C:
@@ -56,6 +67,11 @@ func main() {
 				// Ticker contains a channel
 				// It sends the time on the channel after the number of ticks specified by the duration have elapsed.
 				//
+				// we reload prometheus config a half the frequency of the scrape
+				if reloadPrometheusConfig && allowReloadPrometheusConfig {
+					loadPrometheusConfig()
+				}
+				reloadPrometheusConfig = !reloadPrometheusConfig
 				reloadScrapeConfig()
 			}
 		}
@@ -66,6 +82,7 @@ func main() {
 	// Block indefinitely on the main channel
 	//
 	stopChannel := make(chan string)
+
 	for {
 		select {
 		case status := <-stopChannel:
@@ -73,7 +90,6 @@ func main() {
 			break
 		}
 	}
-
 }
 
 func loadPrometheusConfig() {
